@@ -1,0 +1,657 @@
+    <script type="text/javascript" src="js/jquery-1.11.3.js"></script>
+    <script type="text/javascript" src="js/bootstrap.min.js"></script> 
+    <script type="text/javascript" src="js/functions.js"></script> 
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+
+<script>
+    function getBinanceCandles(symbol = 'BTCUSDT', interval = '5m', limit = '10'){
+        let result = undefined;
+		$.ajax({
+			data:'get_candles=true&symbol='+symbol+'&interval='+interval+'&limit='+limit,
+			type: 'post',
+            dataType: 'json',
+			url:'get_data.php',
+			async: false,
+			success:function(data) {
+				result = data;
+                // 1499040000000,      // Open time
+                // "0.01634790",       // Open
+                // "0.80000000",       // High
+                // "0.01575800",       // Low
+                // "0.01577100",       // Close
+                // "148976.11427815",  // Volume
+                // 1499644799999,      // Close time
+                // "2434.19055334",    // Quote asset volume
+                // 308,                // Number of trades
+                // "1756.87402397",    // Taker buy base asset volume
+                // "28.46694368",      // Taker buy quote asset volume
+                // "17928899.62484339" // Ignore.
+			}
+		});
+        return result;
+    }
+    function getBinanceCoinPrice(symbol = 'BTCUSDT', limit = '10'){
+        let result = undefined;
+		$.ajax({
+			data:'get_price=true&symbol='+symbol+'&limit='+limit,
+			type: 'post',
+            dataType: 'json',
+			url:'get_data.php',
+			async: false,
+			success:function(data) {
+				result = data;          
+                // id:67353002
+                // isBestMatch:true
+                // isBuyerMaker:true
+                // price:"7068.67000000"
+                // qty:"0.00931800"
+                // time:1535810975176
+			}
+		});
+        return result;
+    }
+    const alarmSound = new Audio("sounds/Cuckoo-bird-sound.mp3");
+    var globalPair = undefined;
+
+//############################################### price alarms #################################
+$(document).ready(function(){
+    var globalAlarmId = undefined;
+    $('#newPriceAlarmBtn').click(function () {
+        globalAlarmId = undefined;
+        $('.hideBtnPriceAlarm').hide();
+
+        let pair = $('#selectPair').val().toUpperCase();
+        $('#priceAlarmPair').val(pair);
+        $('#priceAlarmValue').val(getBinanceCoinPrice(pair,1)[0].price);   
+    });
+
+    $('#btnSavePriceAlarm').click(function(){
+       
+
+        let pair = $('#priceAlarmPair').val();
+        let alarmPrice = $('#priceAlarmValue').val();   
+        let note = $('#priceAlarmNote').val();
+        let crossing = $('#priceAlarmCrossing').val();
+        let alarmBtn = '<button style="width: 100%; color: white; background-color: mediumseagreen; margin-top: 5px;"';
+        let id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        alarmBtn += ' id="'+id+'" class="viewPriceAlarmBtn" data-active="true" data-pair="'+pair+'" data-price="'+alarmPrice+'" data-note="'+note+'" data-crossing="'+crossing+'">'+pair+' '+alarmPrice+'</button>';
+        $('#priceAlarmHolder').prepend(alarmBtn);
+        if(globalAlarmId != undefined){
+            $('#'+globalAlarmId).remove();
+           
+        }
+        globalAlarmId = undefined;
+        
+    });
+
+    
+
+	//click existing alarms
+	$('body').delegate(".viewPriceAlarmBtn", "click", function(){
+        $('.hideBtnPriceAlarm').show();
+        
+        id = $(this).attr('id');
+		price = $(this).attr('data-price');
+		note = $(this).attr('data-note');
+		pair = $(this).attr('data-pair');
+		crossing = $(this).attr('data-crossing');
+		globalPair = pair;
+		$('#priceAlarmPair').val(pair);
+		$('#priceAlarmValue').val(price);
+		$('#priceAlarmNote').val(note);
+		$('#priceAlarmCrossing').val(crossing);
+		
+		$('#priceAlarms').modal('show');
+		globalAlarmId = id;
+	});
+
+    $('#btnDeletePriceAlarm').click(function(){
+        $('#'+globalAlarmId).remove();
+        globalAlarmId = undefined;
+    });
+    	
+
+    setInterval(function(){
+        $('.viewPriceAlarmBtn').each(function(){
+            active = $(this).attr('data-active');
+            if(active == "true"){
+                id = $(this).attr('id');
+                pair = $(this).attr('data-pair');
+                price = $(this).attr('data-price');
+                note = $(this).attr('data-note');
+                crossing = $(this).attr('data-crossing');
+
+                currentPrice = getBinanceCoinPrice(pair, 1)[0].price;
+                function createAlarm(){
+                    message = "<center><h2>"+pair+" has crossed "+price+". Note: "+note+"</h2>";
+                    $('#'+id).attr('data-active', 'false');
+                    $('#'+id).css({'background-color': 'white', 'color': 'green'});
+                    $('#showAlarm').modal('show');
+                    $('#messageShowAlarm').html(message);
+                    alarmSound.play();
+                }
+               
+                if(crossing == "crossingUp"){
+                    if(currentPrice >= price){
+                        createAlarm();
+                        globalPair = pair;
+                    }
+                }
+                if(crossing == "crossingDown"){
+                    if(currentPrice <= price){
+                        createAlarm();
+                        globalPair = pair;
+                    }
+                }
+            }
+            //console.log(currentPrice);
+        });
+    },30000);
+
+    $('.goToChart').click(function(){
+        let pair = undefined;
+        let height = $('#tradingViewChart').height();
+        let width = $('#tradingViewChart').width();
+        if($(this).attr('id') == "mainChartBtn"){
+            pair = $('#selectPair').val();
+        }else{
+            pair = globalPair;
+        }
+        new TradingView.widget(
+			 {
+			  "width": width,
+			  "height": height,
+			  "symbol": "Binance:"+pair,
+			  "interval": "15",
+			  "timezone": "Asia/Bangkok",
+			  "theme": "Light",
+			  "style": "1",
+			  "locale": "en",
+			  "toolbar_bg": "#f1f3f6",
+			  "enable_publishing": false,
+			  "hide_side_toolbar": false,
+			  "allow_symbol_change": true,
+			  "show_popup_button": true,
+			  "popup_width": "600",
+			  "popup_height": "500",
+			  "container_id": "tradingview_76d51",
+			 "studies":["RSI@tv-basicstudies","Stochastic@tv-basicstudies","BB@tv-basicstudies"]
+
+			});
+			
+
+    });
+
+});
+
+//############################################### indicator alarms (IA) #################################
+$(document).ready(function(){
+   function IAsetOptions(indicator){
+       form = undefined;
+       if(indicator == "RSI"){
+        form = 'Crossing:<br>';
+        form += '<select id="IArsiOptions" class="form-control">';
+        form += '<option value="lower">Lower Band</option>';
+        form += '<option value="upper">Upper Band</option>';                        
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'Upperband:<br>';
+        form += '<input type="text" value="80"><br><br>';
+        form += 'Lower Band:<br>';
+        form += '<input type="text" value="20"><br><br>';
+        form += 'Lenght:<br>';
+        form += '<input type="text" value="14">';
+                
+       }
+       if(indicator == "BB"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAbbOptions" class="form-control">';
+        form += '<option value="lower">Lower Band</option>';
+        form += '<option value="upper">Upper Band</option>';   
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'Standard Deviation:<br>';
+        form += '<input id="IAbbStd" type="text" value="2"><br><br>';
+        form += 'Lenght:<br>';
+        form += '<input id="IAbbLength" type="text" value="20">';
+       }
+       if(indicator == "EMA"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAemaOptions" class="form-control">';
+        form += '<option value="down">Crossing Up</option>';
+        form += '<option value="up">Crossing Down</option>';   
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'Lenght:<br>';
+        form += '<input type="text" value="9">';
+       }
+       if(indicator == "SMA"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAsmaOptions" class="form-control">';
+        form += '<option value="down">Crossing Up</option>';
+        form += '<option value="up">Crossing Down</option>';   
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'Lenght:<br>';
+        form += '<input type="text" value="9">';
+       }
+       if(indicator == "STOCH"){
+           form = "stoch";
+       }
+       if(indicator == "STD"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAstdOptions" class="form-control">';
+        form += '<option value="lower">Lower Band</option>';
+        form += '<option value="upper">Upper Band</option>';   
+        form += '<option value="middle">Middle</option>';                      
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'Upperband:<br>';
+        form += '<input type="text" value="2"><br><br>';
+        form += 'Lower Band:<br>';
+        form += '<input type="text" value="2"><br><br>';
+        form += 'Lenght:<br>';
+        form += '<input type="text" value="200">';
+       }
+       if(indicator == "EMACROSS"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAemaCrossOptions" class="form-control">';
+        form += '<option value="down">First EMA Crossing Down Second EMA</option>';
+        form += '<option value="up">First EMA Crossing Up Second EMA</option>';   
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'First EMA:<br> <input type="text" value="9"><br><br>';
+        form += 'Second EMA:<br> <input type="text" value="20"><br><br>';
+       }
+       if(indicator == "SMACROSS"){
+        form = 'Crossing:<br>';
+        form += '<select id="IAsmaCrossOptions" class="form-control">';
+        form += '<option value="down">First SMA Crossing Down Second SMA</option>';
+        form += '<option value="up">First SMA Crossing Up Second SMA</option>';   
+        form += '</select><br><br>';
+        form += '<b>Settings:</b><br><br>';
+        form += 'First SMA:<br> <input type="text" value="9"><br><br>';
+        form += 'Second SMA:<br> <input type="text" value="20"><br><br>';
+       }
+       return form;
+   }
+   function IAprocessOptions(indicator){
+        pair = $('#AIindicatorAlarmPair').val();
+        timeFrame = $('#IAselectTimeFrame').val();
+
+       if(indicator == "BB"){
+           crossing = $('#IAbbOptions').val();
+           StandardDeviation = $("#IAbbStd").val();
+           length = $('#IAbbLength').val();
+           let alarmBtn = '<button style="width: 100%; color: white; background-color: mediumseagreen; margin-top: 5px;"';
+            let id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            alarmBtn += ' id="'+id+'" class="AIindicatorAlarmBtn" data-active="true" data-indicator="'+indicator+'"';
+            alarmBtn += ' data-timeFrame="'+timeFrame+'" data-pair="'+pair+'"';
+
+            alarmBtn += ' data-crossing="'+crossing+'" data-std="'+StandardDeviation+'"';
+            alarmBtn += ' data-length="'+length+'">'+pair+' '+indicator+' '+crossing+' '+timeFrame+' </button>';
+            $('#indicatorAlarmHolder').prepend(alarmBtn);
+           
+       }
+       if(indicator == "EMA"){
+           console.log("ema is here");
+       }
+   }
+   function prepCandles(candles){
+       closeprices = [];
+       candles.forEach(function(element){
+           closeprices.push(element[4]);
+           
+       });
+       closeprices = closeprices.map(parseFloat);
+       return closeprices;
+   }
+   function IAsetDeleteAndChartValues(indicator, id, timeFrame, pair){
+		//set alarm and deleteBtn values
+		$('#IAdeleteAlarm').attr('data-id',id);
+		$('#IAgoToChart').attr('data-indicator', indicator);
+		$('#IAgoToChart').attr('data-timeFrame', timeFrame);
+		$('#IAgoToChart').attr('data-pair', pair);
+   }
+   setInterval(function(){
+   
+        $('.AIindicatorAlarmBtn').each(function(){
+            active = $(this).attr('data-active');
+            if(active == "true"){
+                indicator = $(this).attr('data-indicator');
+                id = $(this).attr('id');
+                timeFrame = $(this).attr('data-timeFrame');
+                pair = $(this).attr('data-pair');
+				
+
+                if(indicator == "BB"){
+                    crossing = $(this).attr('data-crossing');
+                    standd = $(this).attr('data-std');
+                    length = $(this).attr('data-length');
+                    length = parseInt(length);
+                    candles = getBinanceCandles(symbol = pair, interval = timeFrame, limit = length+1);//[4] is close price [6] = closetime
+                    priceArray = prepCandles(candles);//returns array of close prices
+                    BBresult = BB(priceArray, length, standd);//returns low: high: middle:
+                    
+                    currentPrice = getBinanceCoinPrice(pair, '1')[0].price;
+                    
+					function createBBAlarm(){
+						$('#'+id).attr('data-active', 'false');
+						$('#showIndicatorAlarm').modal('show');
+						$('#'+id).css({'background-color': 'white', 'color': 'green'});
+
+						message = "<center><h2>"+pair+" "+indicator+" "+crossing+" "+timeFrame+"</h2>";
+						$('#messageShowIndicatorAlarm').html(message);
+						
+					}
+					
+                    if(crossing == "lower"){
+                        lastValue = BBresult.low.pop();//get last value of array
+                        if(currentPrice <= lastValue){
+							createBBAlarm();
+							IAsetDeleteAndChartValues(indicator, id, timeFrame, pair);
+                        }
+                    }
+                    if(crossing == "upper"){
+                        lastValue = BBresult.high.pop();//get last value of array
+                        if(currentPrice >= lastValue){
+							createBBAlarm();
+							IAsetDeleteAndChartValues(indicator, id, timeFrame, pair);
+                        }
+                    }
+                }//BB
+            }
+        });
+
+    },30000);
+	$('body').delegate(".AIindicatorAlarmBtn", "click", function(){
+        $('#showIndicatorAlarm').modal('show');
+        
+		indicator = $(this).attr('data-indicator');
+		id = $(this).attr('id');
+		timeFrame = $(this).attr('data-timeFrame');
+		pair = $(this).attr('data-pair');
+		
+		message = "<center><h2>"+pair+" "+indicator+" "+timeFrame+"</h2>";
+		$('#messageShowIndicatorAlarm').html(message);
+		IAsetDeleteAndChartValues(indicator, id, timeFrame, pair);
+				
+		
+	});
+
+	$('#IAdeleteAlarm').click(function(){
+		id = $(this).attr('data-id');
+		$('#'+id).remove();
+	});
+	
+	$('#IAgoToChart').click(function(){
+		indicator = $(this).attr('data-indicator');
+		timeFrame = $(this).attr('data-timeFrame').match(/\d+/);
+		
+		
+		pair = $(this).attr('data-pair');
+        height = $('#tradingViewChart').height();
+        width = $('#tradingViewChart').width();
+        new TradingView.widget(
+			 {
+			  "width": width,
+			  "height": height,
+			  "symbol": "Binance:"+pair,
+			  "interval": timeFrame,
+			  "timezone": "Asia/Bangkok",
+			  "theme": "Light",
+			  "style": "1",
+			  "locale": "en",
+			  "toolbar_bg": "#f1f3f6",
+			  "enable_publishing": false,
+			  "hide_side_toolbar": false,
+			  "allow_symbol_change": true,
+			  "show_popup_button": true,
+			  "popup_width": "600",
+			  "popup_height": "500",
+			  "container_id": "tradingview_76d51",
+			 "studies":["RSI@tv-basicstudies","Stochastic@tv-basicstudies","BB@tv-basicstudies"]
+
+		});
+
+		
+		
+	});
+	
+    $('#newIndicatorAlarmBtn').click(function(){
+        let pair = $('#selectPair').val().toUpperCase();
+        $('#IAsetAlarmModal').modal('show');
+        $('#AIindicatorAlarmPair').val(pair);
+        let indicator = $('#IAselectIndicator').val();
+        $('#IAoptions').html(IAsetOptions(indicator));
+    });
+    $('#IAselectIndicator').on('change', function() {
+        $('#IAoptions').html(IAsetOptions(this.value));
+    });
+    $('#IAbtnSaveIndicatorAlarm').click(function(){
+        let indicator = $('#IAselectIndicator').val();
+        IAprocessOptions(indicator);
+    });
+});
+
+</script>
+<style>
+.alarms{
+	border: 1px solid green;
+    height: 92%;
+}
+.alarmsTitle{
+    text-align: center;
+    border-bottom: 1px solid green;
+    font-size: 120%;
+}
+#priceAlarms{
+
+}
+#indicatorAlarms{
+
+}
+.row{
+    margin: 10px;
+}
+.bigLetters{
+    font-size: 200%;
+    font-style: bold;
+}
+.inputUp{
+    
+}
+#selectPair{
+    text-transform: uppercase;
+}
+.wideBtn{
+    width: 100%;
+    margin-bottom: 10px;
+}
+#indicatorAlarmsColumn{
+    margin-left: 30px;
+}
+body{
+    color: green;
+}
+#topMenu{
+    height: 5%;
+}
+#tradingViewChart{height: 92%;}
+</style>
+<body>
+<div class="row" id="topMenu">
+    <span class="bigLetters">Select Pair</span>
+    <input type="text" id="selectPair" value="BTCUSDT"/>
+    <button id="mainChartBtn" class="goToChart">Chart</button>
+    <button id="test">test</button>
+    Prefered pairs: <button>EOSUSDT</button>
+</div>
+<div class="col-sm-3">
+        <div class="alarms col-sm-4">
+                <h3 class='alarmsTitle'>Price Alarms</h3>
+                <!-- <button id="newPriceAlarmBtn" class="wideBtn">New Alarm</button> -->
+                <button id="newPriceAlarmBtn" class="wideBtn" type="button" data-toggle="modal" data-target="#priceAlarms">New Alarm</button>
+                <div id="priceAlarmHolder">
+                    
+                    
+                </div>
+            </div>
+            <div id="indicatorAlarmsColumn" class="alarms col-sm-4">
+                <h3 class='alarmsTitle'>Indicator Alarms</h3>
+                <button id="newIndicatorAlarmBtn" class="wideBtn">New Alarm</button>
+                <div id="indicatorAlarmHolder">
+
+                </div>
+            </div>
+            <div class="alarms col-sm-3">
+                <h3 class="alarmsTitle">Indicator Pairs</h3>
+                <button class="wideBtn">Add Pair</button>
+            </div>
+            
+</div>
+<div id="tradingViewChart" class="col-sm-9">
+    <!-- TradingView Widget BEGIN -->
+    <div class="tradingview-widget-container">
+        <div id="tradingview_76d51"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    </div>
+      <!-- TradingView Widget END -->
+</div>
+
+<!-- /////////////////////////////////////////////////// MODALS price alarms//////////////////////////////////////////////////////////////// -->
+
+
+<div id="priceAlarms" class="modal fade" role="dialog" style="z-index:9999"; >
+    <div class="modal-dialog">
+  
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Create New Alarm</h4>
+        </div>
+        <div class="modal-body">
+          Pair:<br><input id="priceAlarmPair" size="8"><br><br>
+          Value:<br><input id="priceAlarmValue" size="15"><br><br>
+          Note:<br><textarea id="priceAlarmNote" cols="60"></textarea><br><br>
+          <select id="priceAlarmCrossing" name="crossing" class="form-control" >
+              <option value="crossingDown">Crossing Down</option>
+              <option value="crossingUp">Crossing Up</option>
+          </select><br>
+          <!-- <input id="alarmRepeat" type="checkbox" name="repeat" value="repeat">Repeat Alarm<br><br>
+          <input id="alarmEmail" type="checkbox" name="email" value="email">Send Email<br><br> 
+          <input id="alarmPopup" type="checkbox" name="popUp" value="popUp">Show Pop Up<br><br>  -->
+        
+        
+        
+        
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btnSavePriceAlarm" class="btn btn-default" data-dismiss="modal">Save</button>
+          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+          <button type="button" id="btnDeletePriceAlarm" class="btn hideBtnPriceAlarm btn-default" data-dismiss="modal">Delete</button>
+          <button type="button"  class="goToChart btn btn-default hideBtnPriceAlarm" data-dismiss="modal">Chart</button>
+
+        </div>
+      </div>
+      <!-- end modal -->
+    </div>
+</div>
+
+<div id="showAlarm" class="modal fade" role="dialog">
+	
+	<div class="modal-dialog modal-lg">
+		<div class="modal-content">
+		      <div class="modal-header">
+				<h4 class="modal-title">Alarm </h4>
+			  </div>
+
+			<div class="modal-body" id="messageShowAlarm">
+				
+			</div>
+		  <div class="modal-footer">
+			<button type="button"  class="goToChart btn btn-default" data-dismiss="modal">Chart</button>
+			<button type="button"  class="btn btn-default" data-dismiss="modal">OK</button>
+		  </div>
+		</div>
+	</div>
+</div>
+
+<!-- ///////////////////////////////////////////////////// modals indicator alarms /////////////////////////////////////////////////// -->
+<div id="IAsetAlarmModal" class="modal fade" role="dialog" style="z-index:9999"; >
+        <div class="modal-dialog">
+      
+          <!-- Modal content-->
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title">Create New Indicator Alarm</h4>
+            </div>
+            <div class="modal-body">
+              Pair:<br><input id="AIindicatorAlarmPair" size="8"><br><br>
+  
+              Indicator:<br>
+              <select id="IAselectIndicator" name="IAindicator" class="form-control" >
+                  <option value="BB">Bolliger Bands</option>
+                  <option value="RSI">RSI</option>
+                  <option value="EMA">Exponential Moving Average</option>
+                  <option value="SMA">Simple Moving Average</option>
+                  <option value="STOCH">Stochastics</option>
+                  <option value="STD">Standard Deviation</option>
+                  <option value="EMACROSS">EMA CROSS</option>
+                  <option value="SMACROSS">SMA CROSS</option>
+              </select><br><br>
+              Time Frame:<br>
+              <select id="IAselectTimeFrame" class="form-control">
+                  <option value="1m">1 m</option>
+                  <option value="3m">3 m</option>
+                  <option value="5m">5 m</option>
+                  <option value="15m">15 m</option>
+                  <option value="30m">30 m</option>
+                  <option value="45m">45 m</option>
+                  <option value="1h">1 hr</option>
+                  <option value="2h">2 hr</option>
+                  <option value="3h">3 hr</option>
+                  <option value="4h">4 hr</option>
+                  <option value="1d">1 d</option>
+              </select><br><br>
+              <div id="IAoptions">
+              </div>
+              <!-- <input id="alarmRepeat" type="checkbox" name="repeat" value="repeat">Repeat Alarm<br><br>
+              <input id="alarmEmail" type="checkbox" name="email" value="email">Send Email<br><br> 
+              <input id="alarmPopup" type="checkbox" name="popUp" value="popUp">Show Pop Up<br><br>  -->
+            
+            
+            
+            
+            </div>
+            <div class="modal-footer">
+              <button type="button" id="IAbtnSaveIndicatorAlarm" class="btn btn-default" data-dismiss="modal">Save</button>
+              <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+    
+            </div>
+          </div>
+          <!-- end modal -->
+        </div>
+</div>
+<div id="showIndicatorAlarm" class="modal fade" role="dialog">
+	
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                  <div class="modal-header">
+                    <h4 class="modal-title">Alarm </h4>
+                  </div>
+    
+                <div class="modal-body" id="messageShowIndicatorAlarm">
+                    
+                </div>
+              <div class="modal-footer">
+                <button type="button" id="IAgoToChart" class="btn btn-default" data-dismiss="modal" data-indicator="" data-timeFrame="" data-pair="">Chart</button>
+                <button type="button"  class="btn btn-default" data-dismiss="modal">OK</button>
+				<button type="button" id="IAdeleteAlarm" class="btn btn-default" data-dismiss="modal" data-id="">Delete</button>
+				
+              </div>
+            </div>
+        </div>
+</div>
+    
+</body>

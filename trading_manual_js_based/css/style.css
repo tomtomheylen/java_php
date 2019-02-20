@@ -1,0 +1,24 @@
+#header{
+	background-color:#039be5;
+	height:10%;
+}
+#footer{
+	min-height:10%;
+	background-color:#cfd8dc;
+	color:white;
+	font-weight:bold;
+	padding:15px;
+}
+#sidebar{
+	 
+	 padding-top:15px;
+	 background-color:#F8F8F8 ;
+}
+#body{
+	
+		
+}
+body{min-height:100%;}
+#main{
+	 display: flex;
+}
