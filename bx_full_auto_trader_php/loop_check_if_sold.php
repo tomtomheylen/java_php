@@ -8,11 +8,11 @@ function getorders($pairing_id,$type){
 	if($ch = curl_init ()){
 		$data['pairing'] = $pairing_id;//btc/thb
 		$data['type'] = $type;
-		$data['key'] = '570025c31e30';
+		$data['key'] = 'xxx';
 		$mt = explode(' ', microtime());
 		$nonce = $mt[1].substr($mt[0], 2, 6);
 		$data['nonce'] = $nonce;
-		$data['signature'] = hash('sha256', '570025c31e30'.$nonce.'f3fb8b6a7df6');
+		$data['signature'] = hash('sha256', 'xxx'.$nonce.'xxx');
 		// if($this->twofa != ''){
 			// $data['twofa'] = $this->twofa;
 		// }
